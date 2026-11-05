@@ -7,28 +7,61 @@ services:
     ports:
       - "127.0.0.1:8080:8080"
     environment:
-      DATABASE_URL: postgresql://margosha:${POSTGRES_PASSWORD}@db:5432/cat_shop
+      DATABASE_URL: postgresql://${POSTGRES_USER:-margosha}:${POSTGRES_PASSWORD:-}@db:5432/${POSTGRES_DB:-cat_shop}
+      PARTNER_URL: ${PARTNER_URL:-http://partner:8080}
+      PARTNER_TIMEOUT: ${PARTNER_TIMEOUT:-2}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      PRICE_TTL: ${PRICE_TTL:-60}
     depends_on:
       db:
         condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks: [frontend, backend, partnernet]
 
   db:
     container_name: db
     image: postgres:16-alpine
     environment:
-      POSTGRES_DB: cat_shop
+      POSTGRES_DB: ${POSTGRES_DB:-cat_shop}
+      POSTGRES_USER: ${POSTGRES_USER:-margosha}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_USER: margosha
     volumes:
       - catdata:/var/lib/postgresql/data
       - ./init-db:/docker-entrypoint-initdb.d:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U margosha -d cat_shop"]
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 3s
       timeout: 3s
       retries: 10
       start_period: 10s
+    networks: [backend]
 
+  redis:
+    container_name: redis
+    image: redis:7.4-alpine
+    command: ["redis-server", "--save", "", "--appendonly", "no", "--maxmemory", "64mb", "--maxmemory-policy", "allkeys-lru"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+    networks: [backend]
+
+  partner:
+    container_name: partner
+    image: wiremock/wiremock:3.6.0
+    command: ["--verbose", "--disable-banner"]
+    volumes:
+      - ./partner/mappings:/home/wiremock/mappings:ro
+    networks: [partnernet]
 
 volumes:
   catdata:
+
+networks:
+  frontend:
+  backend:
+    internal: true
+  partnernet:
+    internal: true
