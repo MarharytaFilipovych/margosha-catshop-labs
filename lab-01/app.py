@@ -9,6 +9,7 @@ Three endpoints, three different kinds of dependency:
 
 Everything comes from the environment. Nothing comes from the machine it happens to run on.
 """
+import json
 import os
 import time
 from pathlib import Path
@@ -24,6 +25,8 @@ COUNTER_FILE = Path(os.environ.get("COUNTER_FILE", "/data/visits.txt"))
 # When DATABASE_URL is set the counter moves to Postgres. Same image, different composition.
 DATABASE_URL = os.environ.get("DATABASE_URL")
 DB_RETRIES = int(os.environ.get("DB_RETRIES", "30"))
+REDIS_URL = os.environ.get("REDIS_URL")
+PRICE_TTL = int(os.environ.get("PRICE_TTL", "60"))
 
 
 # --------------------------------------------------------------------- storage
@@ -99,15 +102,63 @@ def visits():
         return jsonify(error=str(exc), store="postgres" if DATABASE_URL else "file"), 503
 
 
+_cache = None
+_cache_down_until = 0.0
+
+
+def cache():
+    global _cache
+    if not REDIS_URL or time.time() < _cache_down_until:
+        return None
+    if _cache is None:
+        import redis
+
+        _cache = redis.Redis.from_url(
+            REDIS_URL, socket_timeout=1, socket_connect_timeout=1, decode_responses=True
+        )
+    return _cache
+
+
+def _cache_failed():
+    global _cache_down_until
+    _cache_down_until = time.time() + 30
+
+
+def cache_get(key):
+    try:
+        c = cache()
+        return c.get(key) if c else None
+    except Exception:
+        _cache_failed()
+        return None
+
+
+def cache_set(key, value):
+    try:
+        c = cache()
+        if c:
+            c.setex(key, PRICE_TTL, value)
+    except Exception:
+        _cache_failed()
+
+
 @app.get("/price/<sku>")
 def price(sku):
     """Somebody else's API. We do not own it, cannot restart it, and must not call it from tests."""
     url = f"{PARTNER_URL}/v1/catalog/{sku}"
+    key = f"price:{sku}"
+
+    cached = cache_get(key)
+    if cached:
+        return jsonify({**json.loads(cached), "cache": "hit"})
+
     try:
         r = requests.get(url, timeout=PARTNER_TIMEOUT)
         r.raise_for_status()
         body = r.json()
-        return jsonify(sku=sku, price=body.get("price"), currency=body.get("currency"), source=url)
+        result = dict(sku=sku, price=body.get("price"), currency=body.get("currency"), source=url)
+        cache_set(key, json.dumps(result))
+        return jsonify({**result, "cache": "miss" if REDIS_URL else "off"})
     except Exception as exc:  # noqa: BLE001
         # The failure is the interesting part: it is how we see network isolation working.
         return jsonify(sku=sku, error=type(exc).__name__, detail=str(exc)[:200], source=url), 502
