@@ -2,6 +2,8 @@ import importlib
 
 import pytest
 
+import app
+
 COUNTER_FILE = "COUNTER_FILE"
 DB_URL = "DATABASE_URL"
 PARTNER_URL = "PARTNER_URL"
@@ -21,10 +23,9 @@ UNREACHABLE = "127.0.0.1:9"
 
 
 def load_app():
-    import app as app_module
-    importlib.reload(app_module)
-    app_module.app.config.update(TESTING=True)
-    return app_module
+    importlib.reload(app)
+    app.app.config.update(TESTING=True)
+    return app
 
 
 @pytest.fixture

@@ -11,6 +11,9 @@ on:
       - ".github/workflows/publish-lab-02.yml"
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   test:
     runs-on: ubuntu-24.04
@@ -34,6 +37,9 @@ jobs:
         run: python -m pytest tests -q
 
   publish:
+    permissions:
+      contents: read
+      packages: write
     needs: test
     runs-on: ubuntu-24.04
     steps:
@@ -60,6 +66,9 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Build the image for the smoke test
         uses: docker/build-push-action@v6
+        env:
+          DOCKER_BUILD_SUMMARY: false
+          DOCKER_BUILD_RECORD_UPLOAD: false
         with:
           context: lab-02
           load: true
