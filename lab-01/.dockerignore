@@ -1,0 +1,17 @@
+.env
+.env.*
+.git
+.gitignore
+.venv/
+data/
+.idea/
+Dockerfile
+.dockerignore
+*.md
+init-db/
+partner/
+
+
+# From the catshop-examples, though I do not have these files in my system as of now
+__pycache__/
+*.pyc
