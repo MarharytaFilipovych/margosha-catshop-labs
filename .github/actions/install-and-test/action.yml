@@ -1,0 +1,58 @@
+name: install and test
+description: Install the app's dependencies and run pytest
+
+inputs:
+  python-version:
+    description: Python version to be installed
+    required: false
+    default: '3.12'
+  working-directory:
+    description: the folder with requirements.txt, requirements-dev.txt and tests/ folder
+    required: true
+
+outputs:
+  tests:
+    description: how many tests ran and passed
+    value: ${{ steps.run.outputs.tests }}
+
+runs:
+  using: composite
+  steps:
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ inputs.python-version }}
+
+    - id: pip-cache
+      name: Find out where pip's cache is
+      shell: bash
+      run: echo "dir=$(pip cache dir)" >> "$GITHUB_OUTPUT"
+
+    - id: deps
+      uses: actions/cache@v6
+      with:
+        path: ${{ steps.pip-cache.outputs.dir }}
+        key: pip-${{ runner.os }}-${{ inputs.python-version }}-${{ hashFiles(format('{0}/requirements*.txt', inputs.working-directory)) }}
+        restore-keys: |
+          pip-${{ runner.os }}-${{ inputs.python-version }}-
+          pip-${{ runner.os }}-
+
+    - name: Install dependencies
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: pip install -r requirements.txt -r requirements-dev.txt
+
+    - id: run
+      name: Run tests
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: |
+        python -m pytest tests -q | tee out.txt
+        echo "tests=$(grep -oE '[0-9]+ passed' out.txt | head -1)" >> "$GITHUB_OUTPUT"
+
+    - name: Report the dependency cache result
+      shell: bash
+      run: |
+        echo "| ${{ runner.os }} / python ${{ inputs.python-version }} | exact hit: ${{ steps.deps.outputs.cache-hit || 'false' }} |" \
+          >> "$GITHUB_STEP_SUMMARY"
+        

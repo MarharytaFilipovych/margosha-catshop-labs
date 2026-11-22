@@ -1,0 +1,93 @@
+name: _build-and-test
+
+on:
+  workflow_call:
+    inputs:
+      image:
+        description: the full image name without a tag
+        required: true
+        type: string
+      tag:
+        description: the image's tag
+        required: true
+        type: string
+      publish:
+        description: decide whether you need to push the image or only build it
+        required: false
+        default: false
+        type: boolean
+      working-directory:
+        description: the folder that contains the application with Dockerfile, requirements.txt, requirements-dev.txt and /tests subfolder
+        required: true
+        type: string
+
+    outputs:
+      digest:
+        description: the built image by digest
+        value: ${{ jobs.image.outputs.digest }}
+      ref:
+        description: image@digest —> echoed back so the caller can chain on this job alone
+        value: ${{ inputs.image }}@${{ jobs.image.outputs.digest}}
+      tag:
+        description: the tag from inputs
+        value: ${{ inputs.tag }}
+
+    secrets:
+      registry-token:
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+        python: ['3.11', '3.12']
+      fail-fast: false
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+      - name: Install python and test
+        uses: ./.github/actions/install-and-test
+        with:
+          python-version: ${{ matrix.python }}
+          working-directory: ${{ inputs.working-directory }}
+  image:
+    needs: test
+    permissions:
+      contents: read
+      packages: write
+    runs-on: ubuntu-24.04
+    outputs:
+      digest: ${{ steps.build-and-maybe-push.outputs.digest }}
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Log in to GHCR if we need to publish the image
+        if: inputs.publish
+        uses:  docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.registry-token || secrets.GITHUB_TOKEN }}
+      - id: build-and-maybe-push
+        name: Build and optionally push the image
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ inputs.working-directory }}
+          push: ${{ inputs.publish }}
+          tags: ${{ inputs.image }}:${{ inputs.tag }}
+          labels: |
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: Print the published digest
+        if: inputs.publish
+        run: |
+          echo "published ${{ inputs.image }}@${{ steps.build-and-maybe-push.outputs.digest }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "${{ inputs.image }}@${{ steps.build-and-maybe-push.outputs.digest }}"

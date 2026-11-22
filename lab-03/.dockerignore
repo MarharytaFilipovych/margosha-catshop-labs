@@ -1,0 +1,16 @@
+.env
+.env.*
+.git
+.gitignore
+.venv/
+data/
+.idea/
+Dockerfile
+.dockerignore
+*.md
+init-db/
+partner/
+
+
+__pycache__/
+*.pyc
