@@ -1,0 +1,33 @@
+name: install and test
+description: Install the app's dependencies and run pytest
+
+inputs:
+  python-version:
+    description: Python version to be installed
+    required: false
+    default: '3.12'
+  working-directory:
+    description: the folder with requirements.txt, requirements-dev.txt and tests/ folder
+    required: true
+
+outputs:
+  tests:
+    description: how many tests ran and passed
+    value: ${{ steps.run.outputs.tests }}
+
+runs:
+  using: composite
+  steps:
+    - name: Set up Python and install dependencies
+      uses: ./.github/actions/install
+      with:
+        python-version: ${{ inputs.python-version }}
+        working-directory: ${{ inputs.working-directory }}
+
+    - id: run
+      name: Run tests
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: |
+        python -m pytest tests -q | tee "$RUNNER_TEMP/pytest.txt"
+        echo "tests=$(grep -oE '[0-9]+ passed' "$RUNNER_TEMP/pytest.txt" | head -1)" >> "$GITHUB_OUTPUT"

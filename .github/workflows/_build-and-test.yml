@@ -1,0 +1,113 @@
+name: Build and test
+
+on:
+  workflow_call:
+    inputs:
+      image:
+        description: the full image name without a tag
+        required: true
+        type: string
+      tag:
+        description: the image's tag
+        required: true
+        type: string
+      publish:
+        description: decide whether you need to push the image or only build it
+        required: false
+        default: false
+        type: boolean
+      working-directory:
+        description: the folder that contains the application with Dockerfile, requirements*.txt files and /tests subfolder
+        required: true
+        type: string
+      python-version:
+        description: Python version to test the app with
+        required: false
+        default: '3.12'
+        type: string
+
+    outputs:
+      digest:
+        description: the built image by digest
+        value: ${{ jobs.image.outputs.digest }}
+      ref:
+        description: image@digest —> echoed back so the caller can chain on this job alone
+        value: ${{ inputs.image }}@${{ jobs.image.outputs.digest}}
+      tag:
+        description: the tag from inputs
+        value: ${{ inputs.tag }}
+      tests:
+        description: how many unit tests passed
+        value: ${{ jobs.test.outputs.tests }}
+      cache-hit:
+        description: whether the pip cache matched exactly
+        value: ${{ jobs.test.outputs.cache-hit }}
+
+    secrets:
+      registry-token:
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    outputs:
+      tests: ${{ steps.install-and-test.outputs.tests }}
+      cache-hit: ${{ steps.deps.outputs.cache-hit || 'false' }}
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - id: deps
+        name: Restore the pip cache
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/pip
+          key: pip-${{ runner.os }}-${{ inputs.python-version }}-${{ hashFiles(format('{0}/requirements*.txt', inputs.working-directory)) }}
+          restore-keys: |
+            pip-${{ runner.os }}-${{ inputs.python-version }}-
+            pip-${{ runner.os }}-
+
+      - id: install-and-test
+        name: Install Python and run tests
+        uses: ./.github/actions/install-and-test
+        with:
+          python-version: ${{ inputs.python-version }}
+          working-directory: ${{ inputs.working-directory }}
+  image:
+    needs: test
+    permissions:
+      contents: read
+      packages: write
+    runs-on: ubuntu-24.04
+    outputs:
+      digest: ${{ steps.build-and-maybe-push.outputs.digest }}
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR if we need to publish the image
+        if: inputs.publish
+        uses:  docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.registry-token || secrets.GITHUB_TOKEN }}
+
+      - id: build-and-maybe-push
+        name: Build and optionally push the image
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ inputs.working-directory }}
+          push: ${{ inputs.publish }}
+          tags: ${{ inputs.image }}:${{ inputs.tag }}
+          labels: |
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
