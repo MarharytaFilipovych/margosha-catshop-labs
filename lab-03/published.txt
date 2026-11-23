@@ -1,1 +1,1 @@
-ghcr.io/marharytafilipovych/catshop-lab-03@sha256:6b090a297ff6dd3b57cd26d46126aa75c40e9afe7830912234bac5b5711113f5
+ghcr.io/marharytafilipovych/catshop-lab-03@sha256:d9ab26ea4299db122f67eab17798230f188aa036cdb7c77ef28cc5e531c795e7
