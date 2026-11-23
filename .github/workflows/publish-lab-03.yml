@@ -6,13 +6,15 @@ on:
       - "lab-03/**"
       - ".github/workflows/publish-lab-03.yml"
       - ".github/workflows/_build-and-test.yml"
-      - ".github/actions/install-and-test/**"
+      - ".github/actions/**"
+      - ".github/workflows/_qa.yml"
   pull_request:
     paths:
       - "lab-03/**"
       - ".github/workflows/publish-lab-03.yml"
       - ".github/workflows/_build-and-test.yml"
-      - ".github/actions/install-and-test/**"
+      - ".github/actions/**"
+      - ".github/workflows/_qa.yml"
   workflow_dispatch:
 
 permissions: {}
@@ -38,11 +40,55 @@ jobs:
       tag: ${{ github.sha }}
       publish: ${{ github.event_name != 'pull_request' }}
 
-  report-back:
+  qa:
     needs: build-and-test
+    if: github.event_name != 'pull_request'
+    permissions:
+      contents: read
+      packages: read
+    uses: ./.github/workflows/_qa.yml
+    with:
+      image-ref: ${{ needs.build-and-test.outputs.ref }}
+      suite-directory: lab-03/qa
+
+  final-report:
+    runs-on: ubuntu-24.04
+    needs: [build-and-test, qa]
+    permissions:
+      contents: write
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+
+      - name: Write published.txt
+        run: echo "${{ needs.build-and-test.outputs.ref }}" > lab-03/published.txt
+
+      - name: Commit published.txt
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add lab-03/published.txt
+          git diff --cached --quiet && { echo "published.txt is unchanged"; exit 0; }
+          git commit -m "published: ${{ needs.build-and-test.outputs.ref }}"
+          git push origin
+
+  report-back:
+    needs: [ build-and-test, qa, final-report ]
+    if: always()
     runs-on: ubuntu-24.04
     steps:
-      - run: |
-          echo "digest ${{ needs.build-and-test.outputs.digest }}" >> "$GITHUB_STEP_SUMMARY"
-          echo "ref ${{ needs.build-and-test.outputs.ref }}" >> "$GITHUB_STEP_SUMMARY"
-          echo "tag ${{ needs.build-and-test.outputs.tag }}" >> "$GITHUB_STEP_SUMMARY"
+      - name: Write the run summary
+        run: |
+          {
+            echo "## publish-lab-03"
+            echo "| | |"
+            echo "|---|---|"
+            echo "| unit tests | ${{ needs.build-and-test.outputs.tests || 'n/a' }} |"
+            echo "| pip cache exact hit | ${{ needs.build-and-test.outputs.cache-hit || 'false' }} |"
+            echo "| image ref | \`${{ needs.build-and-test.outputs.ref }}\` |"
+            echo "| tag | \`${{ needs.build-and-test.outputs.tag }}\` |"
+            echo "| QA | ${{ needs.qa.result }} |"
+            echo "| published.txt | ${{ needs.final-report.result }} |"
+          } >> "$GITHUB_STEP_SUMMARY"

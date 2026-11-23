@@ -14,45 +14,24 @@ outputs:
   tests:
     description: how many tests ran and passed
     value: ${{ steps.run.outputs.tests }}
+  cache-hit:
+    description: whether the pip cache matched exactly
+    value: ${{ steps.install.outputs.cache-hit }}
 
 runs:
   using: composite
   steps:
-    - name: Set up Python
-      uses: actions/setup-python@v5
+    - id: install
+      name: Set up Python and install dependencies
+      uses: ./.github/actions/install
       with:
         python-version: ${{ inputs.python-version }}
-
-    - id: pip-cache
-      name: Find out where pip's cache is
-      shell: bash
-      run: echo "dir=$(pip cache dir)" >> "$GITHUB_OUTPUT"
-
-    - id: deps
-      uses: actions/cache@v6
-      with:
-        path: ${{ steps.pip-cache.outputs.dir }}
-        key: pip-${{ runner.os }}-${{ inputs.python-version }}-${{ hashFiles(format('{0}/requirements*.txt', inputs.working-directory)) }}
-        restore-keys: |
-          pip-${{ runner.os }}-${{ inputs.python-version }}-
-          pip-${{ runner.os }}-
-
-    - name: Install dependencies
-      shell: bash
-      working-directory: ${{ inputs.working-directory }}
-      run: pip install -r requirements.txt -r requirements-dev.txt
+        working-directory: ${{ inputs.working-directory }}
 
     - id: run
       name: Run tests
       shell: bash
       working-directory: ${{ inputs.working-directory }}
       run: |
-        python -m pytest tests -q | tee out.txt
-        echo "tests=$(grep -oE '[0-9]+ passed' out.txt | head -1)" >> "$GITHUB_OUTPUT"
-
-    - name: Report the dependency cache result
-      shell: bash
-      run: |
-        echo "| ${{ runner.os }} / python ${{ inputs.python-version }} | exact hit: ${{ steps.deps.outputs.cache-hit || 'false' }} |" \
-          >> "$GITHUB_STEP_SUMMARY"
-        
+        python -m pytest tests -q | tee "$RUNNER_TEMP/pytest.txt"
+        echo "tests=$(grep -oE '[0-9]+ passed' "$RUNNER_TEMP/pytest.txt" | head -1)" >> "$GITHUB_OUTPUT"
