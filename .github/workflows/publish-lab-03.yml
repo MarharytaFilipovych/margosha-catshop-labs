@@ -4,6 +4,8 @@ on:
   push:
     paths:
       - "lab-03/**"
+      - "!lab-03/**/*.md"
+      - "!lab-03/published.txt"
       - ".github/workflows/publish-lab-03.yml"
       - ".github/workflows/_build-and-test.yml"
       - ".github/actions/**"
@@ -11,6 +13,8 @@ on:
   pull_request:
     paths:
       - "lab-03/**"
+      - "!lab-03/**/*.md"
+      - "!lab-03/published.txt"
       - ".github/workflows/publish-lab-03.yml"
       - ".github/workflows/_build-and-test.yml"
       - ".github/actions/**"
