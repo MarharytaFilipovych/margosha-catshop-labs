@@ -59,7 +59,7 @@ jobs:
 
       - name: Run test suite
         shell: bash
-        run: python -m pytest ${{ inputs.suite-directory }} -q
+        run: python -m pytest ${{ inputs.suite-directory }} -q --junitxml=qa-report.xml
 
       - name: Get logs on failure
         if: failure()
@@ -70,3 +70,10 @@ jobs:
         if: always()
         shell: bash
         run: docker compose down -v -t 1
+
+      - name: Upload the QA report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: qa-report-${{ inputs.profile || 'default' }}
+          path: qa-report.xml

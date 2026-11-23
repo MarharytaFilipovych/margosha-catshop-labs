@@ -51,6 +51,10 @@ jobs:
   qa:
     needs: build-and-test
     if: github.event_name != 'pull_request'
+    strategy:
+      matrix:
+        profile: ['', 'partner']
+      fail-fast: false
     permissions:
       contents: read
       packages: read
@@ -58,6 +62,7 @@ jobs:
     with:
       image-ref: ${{ needs.build-and-test.outputs.ref }}
       suite-directory: lab-03/qa
+      profile: ${{ matrix.profile }}
 
   publish-digest:
     runs-on: ubuntu-24.04
