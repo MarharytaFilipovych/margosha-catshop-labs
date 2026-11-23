@@ -55,7 +55,7 @@ jobs:
       image-ref: ${{ needs.build-and-test.outputs.ref }}
       suite-directory: lab-03/qa
 
-  final-report:
+  publish-digest:
     runs-on: ubuntu-24.04
     needs: [build-and-test, qa]
     permissions:
@@ -79,7 +79,7 @@ jobs:
           git push origin
 
   report-back:
-    needs: [ build-and-test, qa, final-report ]
+    needs: [ build-and-test, qa, publish-digest ]
     if: always()
     runs-on: ubuntu-24.04
     steps:
@@ -94,5 +94,5 @@ jobs:
             echo "| image ref | \`${{ needs.build-and-test.outputs.ref }}\` |"
             echo "| tag | \`${{ needs.build-and-test.outputs.tag }}\` |"
             echo "| QA | ${{ needs.qa.result }} |"
-            echo "| published.txt | ${{ needs.final-report.result }} |"
+            echo "| published.txt | ${{ needs.publish-digest.result }} |"
           } >> "$GITHUB_STEP_SUMMARY"
