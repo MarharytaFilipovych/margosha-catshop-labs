@@ -10,11 +10,6 @@ inputs:
     description: the folder with requirements*.txt files
     required: true
 
-outputs:
-  cache-hit:
-    description: it is true only on the exact key match
-    value: ${{ steps.deps.outputs.cache-hit || 'false' }}
-
 runs:
   using: composite
   steps:
@@ -22,20 +17,6 @@ runs:
       uses: actions/setup-python@v5
       with:
         python-version: ${{ inputs.python-version }}
-
-    - id: pip-cache
-      name: Find out where pip's cache is
-      shell: bash
-      run: echo "dir=$(pip cache dir)" >> "$GITHUB_OUTPUT"
-
-    - id: deps
-      uses: actions/cache@v6
-      with:
-        path: ${{ steps.pip-cache.outputs.dir }}
-        key: pip-${{ runner.os }}-${{ inputs.python-version }}-${{ hashFiles(format('{0}/requirements*.txt', inputs.working-directory)) }}
-        restore-keys: |
-          pip-${{ runner.os }}-${{ inputs.python-version }}-
-          pip-${{ runner.os }}-
 
     - name: Install dependencies
       shell: bash

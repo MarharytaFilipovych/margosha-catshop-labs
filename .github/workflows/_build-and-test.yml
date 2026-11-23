@@ -55,10 +55,21 @@ jobs:
     runs-on: ubuntu-24.04
     outputs:
       tests: ${{ steps.install-and-test.outputs.tests }}
-      cache-hit: ${{ steps.install-and-test.outputs.cache-hit }}
+      cache-hit: ${{ steps.deps.outputs.cache-hit || 'false' }}
     steps:
       - name: Check out the repository
         uses: actions/checkout@v4
+
+      - id: deps
+        name: Restore the pip cache
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/pip
+          key: pip-${{ runner.os }}-${{ inputs.python-version }}-${{ hashFiles(format('{0}/requirements*.txt', inputs.working-directory)) }}
+          restore-keys: |
+            pip-${{ runner.os }}-${{ inputs.python-version }}-
+            pip-${{ runner.os }}-
+
       - id: install-and-test
         name: Install Python and run tests
         uses: ./.github/actions/install-and-test

@@ -14,15 +14,11 @@ outputs:
   tests:
     description: how many tests ran and passed
     value: ${{ steps.run.outputs.tests }}
-  cache-hit:
-    description: whether the pip cache matched exactly
-    value: ${{ steps.install.outputs.cache-hit }}
 
 runs:
   using: composite
   steps:
-    - id: install
-      name: Set up Python and install dependencies
+    - name: Set up Python and install dependencies
       uses: ./.github/actions/install
       with:
         python-version: ${{ inputs.python-version }}

@@ -25,16 +25,14 @@ permissions:
   contents: read
   packages: read
 
-env:
-  COMPOSE_PROFILES: ${{ inputs.profile }}
-  QA_PROFILE: ${{ inputs.profile }}
-  QA_BASE_URL: ${{ inputs.host }}
-  COMPOSE_FILE: ${{ inputs.suite-directory }}/compose.qa.yaml
-  QA_IMAGE: ${{ inputs.image-ref }}
-
 jobs:
   qa:
     runs-on: ubuntu-24.04
+    env:
+      COMPOSE_PROFILES: ${{ inputs.profile }}
+      QA_PROFILE: ${{ inputs.profile }}
+      COMPOSE_FILE: ${{ inputs.suite-directory }}/compose.qa.yaml
+      QA_IMAGE: ${{ inputs.image-ref }}
     steps:
       - name: Check out the repository
         uses: actions/checkout@v4
