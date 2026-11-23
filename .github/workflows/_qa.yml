@@ -69,4 +69,4 @@ jobs:
       - name: Tear stack down
         if: always()
         shell: bash
-        run: docker compose down -v
+        run: docker compose down -v -t 1
